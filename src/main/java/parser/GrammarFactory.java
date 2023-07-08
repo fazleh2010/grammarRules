@@ -47,7 +47,7 @@ public class GrammarFactory {
                     continue;
                 }*/
                 String sparql = this.modifySparql(grammarEntryUnit);
-                GrammarRule grammarRule = new GrammarRule(questions, sparql, grammarEntryUnit.getBindingType(),
+                GrammarRule grammarRule = new GrammarRule(questions, sparql, grammarEntryUnit.getBindingType(),grammarEntryUnit.getReturnType(),
                                                          grammarEntryUnit.getReturnVariable(),grammarEntryUnit.getQueryType().name()
                                                          ,grammarEntryUnit.getSentenceTemplate());
                                                          grammarRules.add(grammarRule);

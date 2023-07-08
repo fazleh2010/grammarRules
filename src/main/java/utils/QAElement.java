@@ -13,20 +13,22 @@ import java.util.List;
  * @author elahi
  */
 public class QAElement {
+
     private List<String[]> question = new ArrayList<String[]>();
-    private String bindingSparql = null;
+    private List<String> bindingSparqls = new ArrayList<String>();
     private String questionSparql = null;
     private String complexSentence = null;
-    
-    public QAElement(List<String[]> question,String bindingSparql,String questionSparql){
-       this.question = question;
-       this.bindingSparql = bindingSparql;
-       this.questionSparql=questionSparql;
+
+    public QAElement(List<String[]> question, List<String> bindingSparqls, String questionSparql) {
+        this.question = question;
+        this.bindingSparqls = bindingSparqls;
+        this.questionSparql = questionSparql;
     }
-    public QAElement(List<String[]> question,String bindingSparql,String questionSparql,String  complexSentence){
-       this.question = question;
-       this.bindingSparql = bindingSparql;
-       this.complexSentence = complexSentence;
+
+    public QAElement(List<String[]> question, List<String> bindingSparqls, String questionSparql, String complexSentence) {
+        this.question = question;
+        this.bindingSparqls = bindingSparqls;
+        this.complexSentence = complexSentence;
     }
 
     public List<String[]> getQuestion() {
@@ -37,20 +39,17 @@ public class QAElement {
         return complexSentence;
     }
 
-    public String getBindingSparql() {
-        return bindingSparql;
+    public List<String> getBindingSparqls() {
+        return bindingSparqls;
     }
 
     public String getQuestionSparql() {
         return questionSparql;
     }
 
-
     @Override
     public String toString() {
-        return "QAElement{" + "question=" + question + ", sparql=" + bindingSparql + '}';
+        return "QAElement{" + "question=" + question + ", sparql1=" + bindingSparqls+'}';
     }
 
-   
-    
 }

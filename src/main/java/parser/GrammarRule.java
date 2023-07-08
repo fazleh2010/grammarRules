@@ -4,6 +4,7 @@ import java.io.File;
 import utils.QAElement;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,29 +35,96 @@ public class GrammarRule {
     public static String ENTITY_DIR = "../resources/en/turtle/";
     private QAElement qaElement = null;
     private String bindingType = null;
-    public static Map<String, Map<String,String>> regularExpreMap = new TreeMap<String, Map<String,String>>();
-    //private Map<String, String> entityMap = new TreeMap<String, String>();
+    public static Map<String, Map<String, List<String>>> regularExpreMap = new TreeMap<String, Map<String, List<String>>>();
 
     // write parse in 
-    public GrammarRule(List<String[]> questions, String sparql, String bindingType, String returnVariable, String queryType, String sentenceTemplate) {
+    public GrammarRule(List<String[]> questions, String sparql, String bindingType, String returnType, String returnVariable, String queryType, String sentenceTemplate) {
         this.bindingType = bindingType;
-        String bindingSparql = this.modifySparqlBinding(queryType, bindingType, returnVariable, sentenceTemplate, sparql);
-        String questionSparql = this.modifyQuestionSparql(queryType, returnVariable, sentenceTemplate, sparql);
-        this.qaElement = new QAElement(questions, bindingSparql, questionSparql);
+        List<String> bindingSparqls = this.modifySparqlBinding(queryType, bindingType, returnType, returnVariable, sentenceTemplate, sparql);
+        String questionSparql = this.modifyQuestionSparql(queryType, returnVariable, sparql);
+        this.qaElement = new QAElement(questions, bindingSparqls, questionSparql);
         for (String[] rule : questions) {
             String ruleRegularEx = rule[GrammarRule.RULE_REGULAR_EXPRESSION_INDEX];
             ruleRegularEx = RegularExpression.ruleToRegEx(ruleRegularEx);
-            Map<String,String> sparqlMaps = new TreeMap<String,String>();
+            Map<String, List<String>> sparqlMaps = new TreeMap<String, List<String>>();
             if (regularExpreMap.containsKey(ruleRegularEx)) {
                 sparqlMaps = regularExpreMap.get(ruleRegularEx);
             }
-            sparqlMaps.put(bindingSparql,questionSparql);
+            sparqlMaps.put(questionSparql, bindingSparqls);
             regularExpreMap.put(ruleRegularEx, sparqlMaps);
         }
     }
 
-    public Map<String, String> findEntityMapEndpoint(String  bindingSparql) {
-        return new SparqlQuery(bindingSparql).getEntityMap();
+    public String parse(String sentence, Boolean entityRetriveOnline, Integer numberOfEntities, String language) throws Exception {
+        List<String[]> questions = this.qaElement.getQuestion();
+        //String sparql = this.qaElement.getSparql();
+        if (!questions.isEmpty()) {
+            for (String[] rule : questions) {
+                String ruleRegularEx = rule[GrammarRule.RULE_REGULAR_EXPRESSION_INDEX];
+                //System.out.println(ruleRegularEx);
+                List<String> extractedParts = RegularExpression.isMatchWithRegEx(sentence, ruleRegularEx);
+                if (!extractedParts.isEmpty()) {
+
+                    Map<String, List<String>> sparqls = regularExpreMap.get(ruleRegularEx);
+                    for (String questionSparql : sparqls.keySet()) {
+                        List<Map<String, String>> entityMaps = new ArrayList<Map<String, String>>();
+                        List<String> bindingSparqls = sparqls.get(questionSparql);
+                        //System.out.println(bindingSparqls);
+                        //System.out.println(questionSparql);
+                        if (!entityRetriveOnline) {
+                            //entityMap = this.findBindingTypeOffline(numberOfEntities, language);
+                        } else {
+                            entityMaps = this.findEntityMapEndpoint(bindingSparqls);
+                        }
+
+                        /*if(extractedParts.contains("mount_everest")){
+                        printMap(entityMap);
+                        System.out.println(extractedParts);
+                    }*/
+                        //System.out.println(extractedParts);
+                        //System.out.println(entityMaps.size());
+                        LinkedHashSet<String> resultsTemp = findUriGivenEntity(extractedParts, entityMaps);
+                        //System.out.println(resultsTemp);
+                        if (!resultsTemp.isEmpty()) {
+                            if (resultsTemp.size() == 1) {
+                                String result = resultsTemp.iterator().next();
+                                if (result.contains("http")) {
+                                    questionSparql = prepareSparql(questionSparql, result);
+                                    this.qaElement = new QAElement(questions, bindingSparqls, questionSparql);
+                                    return questionSparql;
+                                } else {
+                                    questionSparql = prepareSparql(qaElement.getQuestionSparql(), result);
+                                    result = result.replace("_", " ");
+                                    this.qaElement = new QAElement(questions, bindingSparqls, questionSparql, result);
+                                    return questionSparql;
+                                }
+
+                            } else if (resultsTemp.size() > 1) {
+                                questionSparql = prepareSparql(questionSparql, resultsTemp);
+                                this.qaElement = new QAElement(questions, bindingSparqls, questionSparql);
+                                return questionSparql;
+                            }
+
+                        } else {
+                            String npPhrase = extractedParts.iterator().next();
+                            //String newSparql = this.parse(npPhrase, entityRetriveOnline, numberOfEntities, language);
+                            this.qaElement = new QAElement(questions, bindingSparqls, questionSparql, npPhrase);
+                            return questionSparql;
+                        }
+                    }
+
+                }
+            }
+        }
+        return null;
+    }
+
+    public List<Map<String, String>> findEntityMapEndpoint(List<String> bindingSparqls) {
+        List<Map<String, String>> entityMaps = new ArrayList<Map<String, String>>();
+        for (String bindingSparql : bindingSparqls) {
+            entityMaps.add(new SparqlQuery(bindingSparql).getEntityMap());
+        }
+        return entityMaps;
     }
 
     public Map<String, String> findBindingTypeOffline(Integer numberOfEntities, String language) throws Exception {
@@ -74,66 +142,7 @@ public class GrammarRule {
         return entityMap;
     }
 
-    public String parse(String sentence, Boolean entityRetriveOnline, Integer numberOfEntities, String language) throws Exception {
-        List<String[]> questions = this.qaElement.getQuestion();
-        //String sparql = this.qaElement.getSparql();
-        if (!questions.isEmpty()) {
-            for (String[] rule : questions) {
-                String ruleRegularEx = rule[GrammarRule.RULE_REGULAR_EXPRESSION_INDEX];
-                //System.out.println(ruleRegularEx);
-                List<String> extractedParts = RegularExpression.isMatchWithRegEx(sentence, ruleRegularEx);
-                if (!extractedParts.isEmpty()) {
-
-                    Map<String,String> sparqls = regularExpreMap.get(ruleRegularEx);
-                    for (String bindingSparql: sparqls.keySet()) {
-                        Map<String, String> entityMap = new TreeMap<String, String>();
-                        String questionSparql = sparqls.get(bindingSparql);
-                        System.out.println(bindingSparql);
-                        System.out.println(questionSparql);
-                        if (!entityRetriveOnline) {
-                            entityMap = this.findBindingTypeOffline(numberOfEntities, language);
-                        } else {
-                            entityMap = this.findEntityMapEndpoint(bindingSparql);
-                        }
-
-                        /*if(extractedParts.contains("mount_everest")){
-                        printMap(entityMap);
-                        System.out.println(extractedParts);
-                    }*/
-                        System.out.println(extractedParts);
-                        System.out.println(entityMap.size());
-                        List<String> results = findUriGivenEntity(extractedParts, entityMap);
-                        System.out.println(results);
-                        if (!results.isEmpty()) {
-                            if (results.size() == 1) {
-                                String result = results.iterator().next();
-                                if (result.contains("http")) {
-                                    questionSparql = prepareSparql(questionSparql, result);
-                                    //this.qaElement = new QAElement(questions, this.getBindingSparql(),questionSparql);
-                                    return questionSparql;
-                                } else {
-                                    questionSparql = prepareSparql(qaElement.getQuestionSparql(), result);
-                                    result = result.replace("_", " ");
-                                    //this.qaElement = new QAElement(questions, this.getBindingSparql(),questionSparql, result);
-                                    return questionSparql;
-                                }
-
-                            } else if (results.size() > 1) {
-                                questionSparql = prepareSparql(questionSparql, results);
-                                //this.qaElement = new QAElement(questions, this.getBindingSparql(),questionSparql);
-                                return questionSparql;
-                            }
-
-                        }
-                    }
-
-                }
-            }
-        }
-        return null;
-    }
-
-    private String modifyQuestionSparql(String queryType, String returnVariable, String template, String sparql) {
+    private String modifyQuestionSparql(String queryType, String returnVariable, String sparql) {
         if (queryType.contains(QueryType.SELECT.name())) {
             if (returnVariable.contains("objOfProp")) {
                 sparql = sparql.replace("subjOfProp", "Arg").replace("Answer", "objOfProp");
@@ -141,17 +150,19 @@ public class GrammarRule {
                 sparql = sparql.replace("objOfProp", "Arg").replace("Answer", "subjOfProp");
             }
 
-        } else if (queryType.contains(QueryType.ASK.name())) {
-            sparql = sparql.replace("objOfProp", "Arg");
         }
+        /*else if (queryType.contains(QueryType.ASK.name())) {
+            sparql = sparql.replace("objOfProp", "Arg");
+        }*/
 
         return sparql;
     }
 
-    private String modifySparqlBinding(String queryType, String bindingType,String returnVariable, String template, String sparql) {
+    private List<String> modifySparqlBinding(String queryType, String bindingType, String returnType, String returnVariable, String template, String sparql) {
+        List<String> sparqls = new ArrayList<String>();
         if (queryType.contains(QueryType.SELECT.name())) {
-            if(template != null &&template.contains("superlative")){
-               sparql = "SELECT ?Answer WHERE {  ?subjOfProp <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://dbpedia.org/ontology/"+"Country"+"> . } ";
+            if (template != null && template.contains("superlative")) {
+                sparql = "SELECT ?Answer WHERE {  ?subjOfProp <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://dbpedia.org/ontology/" + bindingType + "> . } ";
             }
             if (template != null && template.contains("HOW_MANY_THING_BACKWARD")) {
                 sparql = sparql.replace("(COUNT(DISTINCT ?Answer) as ?c)", "?Answer");
@@ -161,11 +172,16 @@ public class GrammarRule {
             } else {
                 sparql = sparql.replace("?Answer", "?objOfProp");
             }
+            sparqls.add(sparql);
 
         } else if (queryType.contains(QueryType.ASK.name())) {
-            sparql = sparql.replace("?objOfProp", "?Arg");
+            //sparql = sparql.replace("?objOfProp", "?Arg");
+            String sparqlArg1 = "SELECT ?Answer WHERE {?Answer <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://dbpedia.org/ontology/" + bindingType + "> . } ";
+            String sparqlArg2 = "SELECT ?Answer WHERE {?Answer <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://dbpedia.org/ontology/" + returnType + "> . } ";
+            sparqls.add(sparqlArg1);
+            sparqls.add(sparqlArg2);
         }
-        return sparql;
+        return sparqls;
     }
 
     String joinSparql(String mainSparql, String partSparql) throws Exception {
@@ -177,18 +193,44 @@ public class GrammarRule {
         return sparql.replace("?Arg", "<" + uri + ">");
     }
 
-    private String prepareSparql(String sparql, List<String> uris) {
+    private String prepareSparql(String sparql, LinkedHashSet<String> uris) {
         if (uris.size() == 1) {
-            return sparql.replace("?Arg", "<" + uris.get(0) + ">");
+            String value = uris.iterator().next();
+            return sparql.replace("?Arg", "<" + value + ">");
         } else {
-            sparql = sparql.replace("subjOfProp", "<" + uris.get(0) + ">");
-            sparql = sparql.replace("objOfProp", "<" + uris.get(1) + ">");
+            Integer index = 1;
+            for (String uri : uris) {
+                if (index == 1) {
+                    sparql = sparql.replace("subjOfProp", "<" + uri + ">");
+                } else if (index == 2) {
+                    sparql = sparql.replace("objOfProp", "<" + uri + ">");
+                }
+                index = index + 1;
+            }
+
         }
 
         return sparql;
     }
 
-    private List<String> findUriGivenEntity(List<String> extractedParts, Map<String, String> entityMap) {
+    private LinkedHashSet<String> findUriGivenEntity(List<String> extractedParts, List<Map<String, String>> entityMaps) {
+        LinkedHashSet<String> entities = new LinkedHashSet<String>();
+        for (String extractedPart : extractedParts) {
+            String entity = StringModifier.makeLabel(extractedPart, "en");
+            for (Map<String, String> entityMap : entityMaps) {
+                if (entityMap.containsKey(entity)) {
+                    String uri = entityMap.get(entity);
+                    entities.add(uri);
+                }
+            }
+
+        }
+
+        return entities;
+    }
+
+
+    /*private List<String> findUriGivenEntity(List<String> extractedParts, Map<String, String> entityMap) {
         List<String> entities = new ArrayList<String>();
         for (String extractedPart : extractedParts) {
             String entity = StringModifier.makeLabel(extractedPart, "en");
@@ -199,8 +241,7 @@ public class GrammarRule {
         }
 
         return entities;
-    }
-
+    }*/
     private String findEntity(String regulardExpr, String sentence) {
         sentence = StringModifier.removeDelimiter(sentence).toLowerCase();
         regulardExpr = regulardExpr.replace("(.*?)", "");
@@ -226,8 +267,6 @@ public class GrammarRule {
         return qaElement;
     }
 
-   
-
     public String getBindingType() {
         return bindingType;
     }
@@ -250,16 +289,5 @@ public class GrammarRule {
         return "GrammarRule{" + "qaElement=" + qaElement.getQuestionSparql() + '}';
     }
 
-    boolean isParsed() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-
-    String result() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-
-    private String getBindingSparql(String bindingType) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
 
 }

@@ -9,6 +9,7 @@ import parser.Grammar;
 import parser.GrammarFactory;
 import parser.GrammarRule;
 import utils.CsvFile;
+import utils.FileUtils;
 import utils.TripleProcess;
 
 @NoArgsConstructor
@@ -36,34 +37,41 @@ public class QueGG {
                 if (file.getName().contains("input-")) {
                     String outputFileName = inputDir + file.getName().replace("input-", "output-");
                     CsvFile csvFile = new CsvFile(file);
-                    CsvFile csvOutputFile = new CsvFile(new File(outputFileName));
+                    //CsvFile csvOutputFile = new CsvFile(new File(outputFileName));
                     List<String[]> inputRows = csvFile.getRows(file);
                     List<String[]> outputRows = csvFile.getRows(file);
                     String sparql = null;
                     Integer index = 0;
+                    String str = "";
                     for (String[] row : inputRows) {
-                        try {
                             String id = row[0];
-
                             String sentence = row[1];
-                            //sentence="What is the highest mountain in Australia?";
-                            /*if (!sentence.contains("How ")) {
+                            //sentence="How high is the lighthouse in Colombo?";
+                            //Integer idInteger=Integer.parseInt(id);
+                            /*if (idInteger<index) {
                                 continue;
                             }*/
-                            System.out.println(id + ": " + sentence );
-                            sparql = grammar.parser(sentence);
-                            System.out.println(" sparql:" + sparql);
-                            //outputRows.add(new String[]{id, sentence});
-                            if (index >= 51) {
-                                break;
+                            if (index == 0) {
+                                index=index+1;
+                                continue;
                             }
+                            String line = null;
+                            System.out.println(id + ": " + sentence);
+                            sparql = grammar.parser(sentence);
+                            if (sparql != null) {
+                                System.out.println(" sparql:" + sparql);
+                                line = id +","+ "WORKS"+"," + sentence + "," + sparql;
+                            } else {
+                                line = id + ","+"-"+"," + sentence + "," + row[2].replace("\n", "");
+                            }
+
+                            str += line+"\n";
                             index = index + 1;
-                           
-                        } catch (Exception e) {
-                            System.err.printf("%s: %s%n", e.getClass().getSimpleName(), e.getMessage());
-                        }
+                            //break;
+                          
+                        
                     }
-                    csvOutputFile.writeToCSV(outputRows);
+                    FileUtils.stringToFile(str, outputFileName);
                 }
 
             }

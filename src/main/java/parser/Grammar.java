@@ -24,7 +24,6 @@ public class Grammar {
     private Boolean entityRetriveOnline=false;
     private Integer numberOfEntities=-1;
     private String language="en";
-    private QAElement qaElement=null;
 
     public Grammar(List<GrammarRule> grammarRules,Boolean retriveType, Integer numberofEntities, String language) {
         this.grammarRules = grammarRules;
@@ -44,12 +43,14 @@ public class Grammar {
             if (sparql!=null) {
                 String complexSentence = grammarRule.getQaElement().getComplexSentence();
                 if (complexSentence != null) {
-                    qaElement=grammarRule.getQaElement();
-                    sparql=parser(grammarRule.getQaElement().getComplexSentence());
-                    sparql=grammarRule.joinSparql(qaElement.getQuestionSparql(),sparql);
-                    return sparql;
+                    String mainSparql=sparql;
+                    String partSparql=parser(complexSentence);
+                    if(partSparql!=null)
+                       return grammarRule.joinSparql(mainSparql,partSparql);
+                    else
+                    return mainSparql;
                 } else {
-                    //System.out.println(grammarRule.getQaElement().getSparql());
+
                     return sparql;
                 }
             }

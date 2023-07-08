@@ -49,6 +49,7 @@ public class RegularExpression {
         List<String> results = new ArrayList<String>();
         sentence=sentence.toLowerCase();
         sentence = replaceSpaceWithSlash(sentence);
+        //System.out.println(sentence+" "+ruleRegularEx);
         Pattern pattern = Pattern.compile(ruleRegularEx);
         Matcher matcher = pattern.matcher(sentence);
         String extractPattern = null;
